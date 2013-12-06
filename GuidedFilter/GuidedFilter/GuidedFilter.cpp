@@ -1,16 +1,65 @@
-#include "stdafx.h"
+#include "GuidedFilter.h"
 
 Mat guidedFilter_gray(Mat& I, Mat& p, int r, float eps)
 {
+	Size ksize(2 * r + 1, 2 * r + 1);
+	Mat mean_p;
+	vector<Mat> bgr(1);
+	bgr[0] = I;
+
+	Mat mean_b;
+
+	boxFilter(bgr[0], mean_b, CV_32F, ksize);
+	boxFilter(p, mean_p, -1, ksize);
+
+	// covariance of (I, p) in each local patch 
+
+	Mat cov_bp;
+	Mat cov_gp;
+	Mat cov_rp;
+
+	{
+		Mat tmp_bp;
+		Mat mean_bp;
+		multiply(bgr[0], p, tmp_bp);
+		boxFilter(tmp_bp, mean_bp, CV_32F, ksize);
+		multiply(mean_b, mean_p, tmp_bp);
+		cov_bp = mean_bp - tmp_bp;
+	}
+
+	// variance of I in each local patch: the matrix Sigma in Eqn (14).
+	Mat var_bb;
+
+	{
+		Mat tmp_bb;
+		Mat mean_bb;
+		multiply(bgr[0], bgr[0], tmp_bb);
+		boxFilter(tmp_bb, mean_bb, CV_32F, ksize);
+		multiply(mean_b, mean_b, tmp_bb);
+		var_bb = mean_bb - tmp_bb;
+	}
+
+	// compute a and b
+	Mat A_b(p.rows, p.cols, CV_MAKETYPE(CV_32F, 1));
+	Mat B(p.rows, p.cols, CV_32F);
+	Mat A_bb;
+	Mat BB;
+
+	var_bb += eps;
+	divide(cov_bp, var_bb, A_b);
+	boxFilter(A_b, A_bb, CV_32F, ksize);
+	boxFilter(B, BB, CV_32F, ksize);
+
+	multiply(A_bb, bgr[0], A_b);
+
+
 	Mat q;
+	q = A_b + BB;
 	return q;
 }
 Mat guidedFilter_color(Mat& I, Mat& p, int r, float eps)
 {
-	Mat q;
 	Size ksize(2 * r + 1, 2 * r + 1);
-	int N = ksize.width * ksize.height;
-	Mat mean_I_rgb;
 	Mat mean_p;
 	vector<Mat> bgr(3);
 	split(I, bgr);
@@ -156,6 +205,8 @@ Mat guidedFilter_color(Mat& I, Mat& p, int r, float eps)
 	multiply(A_bb, bgr[0], A_b);
 	multiply(A_gg, bgr[1], A_g);
 	multiply(A_rr, bgr[2], A_r);
+
+	Mat q;
 	q = A_b + A_g + A_r + BB;
 #ifdef _DEBUG
 	cout<<"Press any key to continue..."<<endl;

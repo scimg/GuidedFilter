@@ -12,7 +12,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	Mat p;
 	Mat q;
 	cvtColor(I, p, CV_BGR2GRAY);
-	q = guidedFilter(I, p, 10, 0.2);
+	q = guidedFilter(p, p, 10, 0.2);
 
 	imshow("original", p);
 	imshow("filtered", q);
